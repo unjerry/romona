@@ -1,0 +1,72 @@
+# Romona — Docker Compose
+# Usage: docker compose up -d
+#
+# Everything is stored in ./data/ — nothing touches your system.
+# GPU acceleration enabled for NVIDIA.
+
+services:
+
+  # ============================================
+  # Ollama — The LLM Engine (her brain)
+  # ============================================
+  ollama:
+    image: ollama/ollama:latest
+    container_name: romona-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434"
+    volumes:
+      # Model weights stored in YOUR repo folder, not C drive
+      - ./data/ollama:/root/.ollama
+      # Mount modelfiles so we can create custom models
+      - ./modelfile:/modelfiles:ro
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    # Uncomment below if you DON'T have an NVIDIA GPU (CPU-only mode)
+    # Remove the 'deploy' section above and uncomment this:
+    # environment:
+    #   - OLLAMA_HOST=0.0.0.0
+
+  # ============================================
+  # Open WebUI — The Chat Interface (her face)
+  # ============================================
+  open-webui:
+    image: ghcr.io/open-webui/open-webui:main
+    container_name: romona-webui
+    restart: unless-stopped
+    ports:
+      - "3000:8080"
+    volumes:
+      # Chat history, user settings, RAG data — all in YOUR repo folder
+      - ./data/open-webui:/app/backend/data
+      # Mount knowledge docs for easy RAG upload
+      - ./knowledge:/app/backend/knowledge:ro
+    environment:
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - WEBUI_AUTH=true
+      # Disable telemetry
+      - SCARF_NO_ANALYTICS=true
+      - DO_NOT_TRACK=true
+      - ANONYMIZED_TELEMETRY=false
+    depends_on:
+      - ollama
+
+  # ============================================
+  # SearXNG — Self-Hosted Search (her eyes)
+  # Uncomment when ready for Phase 2
+  # ============================================
+  # searxng:
+  #   image: searxng/searxng:latest
+  #   container_name: romona-search
+  #   restart: unless-stopped
+  #   ports:
+  #     - "8888:8080"
+  #   volumes:
+  #     - ./data/searxng:/etc/searxng
+  #   environment:
+  #     - SEARXNG_BASE_URL=http://localhost:8888/
